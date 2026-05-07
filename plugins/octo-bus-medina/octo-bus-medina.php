@@ -142,3 +142,11 @@ function octo_process_expired_holds() {
         error_log("OCTO: Hold expirado y plazas devueltas - UUID: {$booking->uuid}");
     }
 }
+
+add_filter('rest_post_dispatch', 'octo_add_capabilities_header', 10, 3);
+function octo_add_capabilities_header($result, $server, $request) {
+    if (strpos($request->get_route(), '/octo/v1') !== false) {
+        $result->header('Octo-Capabilities', '');
+    }
+    return $result;
+}

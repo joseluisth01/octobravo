@@ -1,7 +1,7 @@
 <?php
 class OctoAuth {
 
-    // API keys válidas: array('key' => 'nombre_reseller')
+    // API keys válidas: array('key' => 'nombre_resellerrrr')
     // Añade aquí la key de Civitatis cuando te la den
     private $valid_keys = array(
         'OCTO_TEST_KEY_12345' => 'Test Reseller',
@@ -31,6 +31,11 @@ class OctoAuth {
             'test_mode' => ($api_key === 'OCTO_TEST_KEY_12345')
         );
     }
+
+    public function send_capabilities_header($capabilities = array()) {
+    $caps_string = implode(', ', $capabilities);
+    header('Octo-Capabilities: ' . $caps_string);
+}
 
     public function get_capabilities(WP_REST_Request $request) {
         $header = $request->get_header('Octo-Capabilities');
