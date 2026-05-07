@@ -1,0 +1,4 @@
+[19-Nov-2025 23:56:29 Europe/Madrid] PHP Fatal error:  Uncaught Error: Call to undefined function add_action() in /home/autobusmedinaaza/public_html/wp-content/themes/twentytwentyfour/functions.php:147
+Stack trace:
+#0 {main}
+  thrown in /home/autobusmedinaaza/public_html/wp-content/themes/twentytwentyfour/functions.php on line 147
