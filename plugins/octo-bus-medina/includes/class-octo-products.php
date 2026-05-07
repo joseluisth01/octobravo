@@ -68,6 +68,9 @@ class OctoProducts {
             'deliveryFormats'  => array('QRCODE'),
             'deliveryMethods'  => array('TICKET'),
             'redemptionMethod' => 'DIGITAL',
+            'capabilities' => array(
+    array('id' => 'octo/pricing', 'required' => false),
+),
             'options'          => array($this->build_option()),
         );
     }

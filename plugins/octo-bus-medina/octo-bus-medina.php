@@ -143,10 +143,22 @@ function octo_process_expired_holds() {
     }
 }
 
+// SUSTITUYE el filtro rest_post_dispatch:
 add_filter('rest_post_dispatch', 'octo_add_capabilities_header', 10, 3);
 function octo_add_capabilities_header($result, $server, $request) {
     if (strpos($request->get_route(), '/octo/v1') !== false) {
-        $result->header('Octo-Capabilities', '');
+        $requested = $request->get_header('Octo-Capabilities');
+        // Devolver las mismas capabilities que pidió el reseller (las que soportamos)
+        $supported = array('octo/pricing');
+        $active    = array();
+        if ($requested) {
+            foreach (array_map('trim', explode(',', $requested)) as $cap) {
+                if (in_array($cap, $supported, true)) {
+                    $active[] = $cap;
+                }
+            }
+        }
+        $result->header('Octo-Capabilities', implode(', ', $active));
     }
     return $result;
 }

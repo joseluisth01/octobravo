@@ -89,7 +89,7 @@ class OctoBookings {
         $servicio_id = $this->decode_availability_id($body['availabilityId']);
 
         if (!$servicio_id) {
-            return $this->auth->error_response('ErrorInvalidAvailabilityID', 'availabilityId no v¨¢lido', 400);
+            return $this->auth->error_response('ErrorInvalidAvailabilityID', 'availabilityId no vï¿½ï¿½lido', 400);
         }
 
         $wpdb->query('START TRANSACTION');
@@ -127,7 +127,7 @@ class OctoBookings {
 
                 default:
                     $wpdb->query('ROLLBACK');
-                    return $this->auth->error_response('ErrorBadRequest', 'unitId no v¨¢lido', 400);
+                    return $this->auth->error_response('ErrorBadRequest', 'unitId no vï¿½ï¿½lido', 400);
             }
         }
 
@@ -259,7 +259,7 @@ class OctoBookings {
         }
 
         if ($booking->status === 'CANCELLED') {
-            return $this->auth->error_response('ErrorBadRequest', 'El booking est¨¢ cancelado', 409);
+            return $this->auth->error_response('ErrorBadRequest', 'El booking estï¿½ï¿½ cancelado', 409);
         }
 
         $contact    = json_decode($booking->contact, true) ?? array();
@@ -439,7 +439,7 @@ class OctoBookings {
                     $table_reservas,
                     array(
                         'estado'             => 'cancelada',
-                        'motivo_cancelacion' => 'Cancelaci¨®n v¨ªa OCTO - ' . $reason,
+                        'motivo_cancelacion' => 'Cancelaciï¿½ï¿½n vï¿½ï¿½a OCTO - ' . $reason,
                         'fecha_cancelacion'  => current_time('mysql'),
                     ),
                     array(
@@ -478,50 +478,53 @@ class OctoBookings {
         return new WP_REST_Response($this->format_booking($booking_updated, $servicio), 200);
     }
 
-    public function extend_booking(WP_REST_Request $request) {
-        $auth = $this->auth->validate_request($request);
-
-        if (is_wp_error($auth)) {
-            return $this->auth->error_response(
-                $auth->get_error_code(),
-                $auth->get_error_message(),
-                $auth->get_error_data()['status']
-            );
-        }
-
-        $uuid = sanitize_text_field($request['uuid']);
-
-        global $wpdb;
-        $table_octo = $wpdb->prefix . 'octo_bookings';
-
-        $booking = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $table_octo WHERE uuid = %s",
-            $uuid
-        ));
-
-        if (!$booking || $booking->status !== 'ON_HOLD') {
-            return $this->auth->error_response('ErrorBadRequest', 'Booking no encontrado o no est¨¢ en ON_HOLD', 400);
-        }
-
-        $new_expires = gmdate('Y-m-d H:i:s', time() + ($this->hold_minutes * 60));
-
-        $wpdb->update(
-            $table_octo,
-            array(
-                'utc_expires_at' => $new_expires,
-            ),
-            array(
-                'uuid' => $uuid,
-            )
+    // SUSTITUYE el mÃ©todo extend_booking completo:
+public function extend_booking(WP_REST_Request $request) {
+    $auth = $this->auth->validate_request($request);
+    if (is_wp_error($auth)) {
+        return $this->auth->error_response(
+            $auth->get_error_code(),
+            $auth->get_error_message(),
+            $auth->get_error_data()['status']
         );
-
-        $booking_updated = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $table_octo WHERE uuid = %s",
-            $uuid
-        ));
-
-        return new WP_REST_Response($this->format_booking($booking_updated), 200);
     }
+
+    $uuid = sanitize_text_field($request['uuid']);
+
+    global $wpdb;
+    $table_octo      = $wpdb->prefix . 'octo_bookings';
+    $table_servicios = $wpdb->prefix . 'reservas_servicios';
+
+    $booking = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_octo WHERE uuid = %s",
+        $uuid
+    ));
+
+    if (!$booking || $booking->status !== 'ON_HOLD') {
+        return $this->auth->error_response('ErrorBadRequest', 'Booking no encontrado o no estÃ¡ en ON_HOLD', 400);
+    }
+
+    $new_expires = gmdate('Y-m-d H:i:s', time() + ($this->hold_minutes * 60));
+
+    $wpdb->update(
+        $table_octo,
+        array('utc_expires_at' => $new_expires),
+        array('uuid' => $uuid)
+    );
+
+    $booking_updated = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_octo WHERE uuid = %s",
+        $uuid
+    ));
+
+    // â† AÃ‘ADIDO: recuperar servicio igual que en el resto de mÃ©todos
+    $servicio = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM $table_servicios WHERE id = %d",
+        $booking_updated->servicio_id
+    ));
+
+    return new WP_REST_Response($this->format_booking($booking_updated, $servicio), 200);
+}
 
     public function get_booking(WP_REST_Request $request) {
         $auth = $this->auth->validate_request($request);
@@ -557,46 +560,68 @@ class OctoBookings {
         return new WP_REST_Response($this->format_booking($booking, $servicio), 200);
     }
 
-    public function list_bookings(WP_REST_Request $request) {
-        $auth = $this->auth->validate_request($request);
-
-        if (is_wp_error($auth)) {
-            return $this->auth->error_response(
-                $auth->get_error_code(),
-                $auth->get_error_message(),
-                $auth->get_error_data()['status']
-            );
-        }
-
-        global $wpdb;
-        $table_octo = $wpdb->prefix . 'octo_bookings';
-
-        $where  = '1=1';
-        $params = array();
-
-        $reseller_ref = $request->get_param('resellerReference');
-
-        if ($reseller_ref) {
-            $where    .= ' AND reseller_reference = %s';
-            $params[] = sanitize_text_field($reseller_ref);
-        }
-
-        $query = "SELECT * FROM $table_octo WHERE $where ORDER BY utc_created_at DESC LIMIT 50";
-
-        if (!empty($params)) {
-            $bookings = $wpdb->get_results($wpdb->prepare($query, ...$params));
-        } else {
-            $bookings = $wpdb->get_results($query);
-        }
-
-        $response = array();
-
-        foreach ($bookings as $booking) {
-            $response[] = $this->format_booking($booking);
-        }
-
-        return new WP_REST_Response($response, 200);
+    // SUSTITUYE el mÃ©todo list_bookings completo:
+public function list_bookings(WP_REST_Request $request) {
+    $auth = $this->auth->validate_request($request);
+    if (is_wp_error($auth)) {
+        return $this->auth->error_response(
+            $auth->get_error_code(),
+            $auth->get_error_message(),
+            $auth->get_error_data()['status']
+        );
     }
+
+    global $wpdb;
+    $table_octo      = $wpdb->prefix . 'octo_bookings';
+    $table_servicios = $wpdb->prefix . 'reservas_servicios';
+
+    $conditions = array('1=1');
+    $params     = array();
+
+    $reseller_ref = $request->get_param('resellerReference');
+    if ($reseller_ref) {
+        $conditions[] = 'b.reseller_reference = %s';
+        $params[]     = sanitize_text_field($reseller_ref);
+    }
+
+    $local_date = $request->get_param('localDate');
+    if ($local_date) {
+        // Unir con servicios para filtrar por fecha
+        $conditions[] = 's.fecha = %s';
+        $params[]     = sanitize_text_field($local_date);
+    }
+
+    $supplier_ref = $request->get_param('supplierReference');
+    if ($supplier_ref) {
+        $conditions[] = 'b.supplier_reference = %s';
+        $params[]     = sanitize_text_field($supplier_ref);
+    }
+
+    $where = implode(' AND ', $conditions);
+
+    $query = "SELECT b.* FROM $table_octo b
+              LEFT JOIN $table_servicios s ON b.servicio_id = s.id
+              WHERE $where
+              ORDER BY b.utc_created_at DESC
+              LIMIT 100";
+
+    if (!empty($params)) {
+        $bookings = $wpdb->get_results($wpdb->prepare($query, ...$params));
+    } else {
+        $bookings = $wpdb->get_results($query);
+    }
+
+    $response = array();
+    foreach ($bookings as $booking) {
+        $servicio = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM $table_servicios WHERE id = %d",
+            $booking->servicio_id
+        ));
+        $response[] = $this->format_booking($booking, $servicio);
+    }
+
+    return new WP_REST_Response($response, 200);
+}
 
     private function format_booking($booking, $servicio = null) {
         $unit_items = json_decode($booking->unit_items, true) ?? array();
@@ -622,50 +647,65 @@ class OctoBookings {
             }
         }
 
-        return array(
-            'id'                => $booking->id,
-            'uuid'              => $booking->uuid,
-            'testMode'          => (bool) $booking->test_mode,
-            'resellerReference' => $booking->reseller_reference,
-            'supplierReference' => $booking->supplier_reference,
-            'status'            => $booking->status,
-            'productId'         => $booking->product_id,
-            'optionId'          => $booking->option_id,
-            'availabilityId'    => $booking->availability_id,
-            'contact'           => $contact,
-            'unitItems'         => $unit_items,
-            'utcCreatedAt'      => $booking->utc_created_at ? str_replace(' ', 'T', $booking->utc_created_at) . 'Z' : null,
-            'utcUpdatedAt' => $booking->utc_cancelled_at
-    ? str_replace(' ', 'T', $booking->utc_cancelled_at) . 'Z'
-    : ($booking->utc_confirmed_at
+        // SUSTITUYE solo el return de format_booking (el array completo):
+return array(
+    'id'                => $booking->id,
+    'uuid'              => $booking->uuid,
+    'testMode'          => (bool) $booking->test_mode,
+    'resellerReference' => $booking->reseller_reference,
+    'supplierReference' => $booking->supplier_reference,
+    'status'            => $booking->status,
+    'cancellable'       => in_array($booking->status, array('ON_HOLD', 'CONFIRMED'), true),  // â† AÃ‘ADIDO
+    'productId'         => $booking->product_id,
+    'optionId'          => $booking->option_id,
+    'availabilityId'    => $booking->availability_id,
+    'contact'           => $contact,
+    'unitItems'         => $unit_items,
+    'utcCreatedAt'      => $booking->utc_created_at
+        ? str_replace(' ', 'T', $booking->utc_created_at) . 'Z'
+        : null,
+    'utcUpdatedAt'      => $booking->utc_cancelled_at
+        ? str_replace(' ', 'T', $booking->utc_cancelled_at) . 'Z'
+        : ($booking->utc_confirmed_at
+            ? str_replace(' ', 'T', $booking->utc_confirmed_at) . 'Z'
+            : ($booking->utc_created_at
+                ? str_replace(' ', 'T', $booking->utc_created_at) . 'Z'
+                : null)),
+    'utcExpiresAt'      => $booking->utc_expires_at
+        ? str_replace(' ', 'T', $booking->utc_expires_at) . 'Z'
+        : null,
+    'utcConfirmedAt'    => $booking->utc_confirmed_at
         ? str_replace(' ', 'T', $booking->utc_confirmed_at) . 'Z'
-        : ($booking->utc_created_at ? str_replace(' ', 'T', $booking->utc_created_at) . 'Z' : null)),
-            'utcExpiresAt'      => $booking->utc_expires_at ? str_replace(' ', 'T', $booking->utc_expires_at) . 'Z' : null,
-            'utcConfirmedAt'    => $booking->utc_confirmed_at ? str_replace(' ', 'T', $booking->utc_confirmed_at) . 'Z' : null,
-            'utcCancelledAt'    => $booking->utc_cancelled_at ? str_replace(' ', 'T', $booking->utc_cancelled_at) . 'Z' : null,
-            'pricing'           => array(
-                'original'          => intval($precio_total),
-                'retail'            => intval($precio_total),
-                'net'               => null,
-                'currency'          => 'EUR',
-                'currencyPrecision' => 2,
+        : null,
+    'utcCancelledAt'    => $booking->utc_cancelled_at
+        ? str_replace(' ', 'T', $booking->utc_cancelled_at) . 'Z'
+        : null,
+    'pricing'           => array(
+        'original'          => intval($precio_total),
+        'retail'            => intval($precio_total),
+        'net'               => null,
+        'currency'          => 'EUR',
+        'currencyPrecision' => 2,
+        'includedTaxes'     => array(),  // â† AÃ‘ADIDO, exigido por spec
+    ),
+    'cancellation'      => array(
+        'refund'         => 'FULL',
+        'reason'         => null,
+        'utcCancelledAt' => $booking->utc_cancelled_at
+            ? str_replace(' ', 'T', $booking->utc_cancelled_at) . 'Z'
+            : null,
+    ),
+    'voucher'           => $booking->status === 'CONFIRMED' ? array(
+        'redemptionMethod' => 'DIGITAL',
+        'utcRedeemedAt'    => null,
+        'deliveryOptions'  => array(
+            array(
+                'deliveryFormat' => 'QRCODE',
+                'deliveryValue'  => $booking->supplier_reference,
             ),
-            'cancellation'      => array(
-                'refund'         => 'FULL',
-                'reason'         => null,
-                'utcCancelledAt' => $booking->utc_cancelled_at ? str_replace(' ', 'T', $booking->utc_cancelled_at) . 'Z' : null,
-            ),
-            'voucher'           => $booking->status === 'CONFIRMED' ? array(
-                'redemptionMethod' => 'DIGITAL',
-                'utcRedeemedAt'    => null,
-                'deliveryOptions'  => array(
-                    array(
-                        'deliveryFormat' => 'QRCODE',
-                        'deliveryValue'  => $booking->supplier_reference,
-                    ),
-                ),
-            ) : null,
-        );
+        ),
+    ) : null,
+);
     }
 
     private function generate_uuid() {

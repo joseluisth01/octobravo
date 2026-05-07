@@ -15,7 +15,7 @@ class OctoAvailability {
             'permission_callback' => '__return_true',
         ));
 
-        // Disponibilidad vista calendario (por días)
+        // Disponibilidad vista calendario (por d锟斤拷as)
         register_rest_route('octo/v1', '/availability/calendar', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'get_availability_calendar'),
@@ -93,10 +93,12 @@ class OctoAvailability {
                 $status = 'LIMITED';
             }
 
-            $local_start = $servicio->fecha . 'T' . substr($servicio->hora, 0, 5) . ':00+02:00';
-            $local_end   = $servicio->hora_vuelta
-                ? $servicio->fecha . 'T' . substr($servicio->hora_vuelta, 0, 5) . ':00+02:00'
-                : null;
+            // SUSTITUYE las dos l铆neas de $local_start y $local_end por:
+$offset      = (new DateTime('now', new DateTimeZone('Europe/Madrid')))->format('P');
+$local_start = $servicio->fecha . 'T' . substr($servicio->hora, 0, 5) . ':00' . $offset;
+$local_end   = $servicio->hora_vuelta
+    ? $servicio->fecha . 'T' . substr($servicio->hora_vuelta, 0, 5) . ':00' . $offset
+    : null;
 
             // availabilityId firmado con datos del servicio
             $availability_id = $this->generate_availability_id($servicio->id, $servicio->fecha, $servicio->hora);
@@ -115,11 +117,9 @@ class OctoAvailability {
                 'openingHours'           => array(),
                 'productId'              => 'bus-medina-azahara',
                 'optionId'               => 'standard',
-                // Guardamos el ID real para usarlo al reservar
-                '_servicio_id'           => $servicio->id,
             );
 
-            // Añadir pricing si lo pide el reseller
+            // A锟�0锟�9adir pricing si lo pide el reseller
             $capabilities = $this->auth->get_capabilities($request);
             if (in_array('octo/pricing', $capabilities) || in_array('pricing', $capabilities)) {
                 $slot['unitPricing'] = array(
