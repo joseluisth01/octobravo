@@ -8,14 +8,12 @@ class OctoAvailability {
     }
 
     public function register_routes() {
-        // Disponibilidad por slots
         register_rest_route('octo/v1', '/availability', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'get_availability'),
             'permission_callback' => '__return_true',
         ));
 
-        // Disponibilidad vista calendario (por d��as)
         register_rest_route('octo/v1', '/availability/calendar', array(
             'methods'             => 'POST',
             'callback'            => array($this, 'get_availability_calendar'),
@@ -35,7 +33,6 @@ class OctoAvailability {
 
         $body = $request->get_json_params();
 
-        // Validar campos obligatorios
         if (empty($body['productId']) || empty($body['optionId']) ||
             empty($body['localDateStart']) || empty($body['localDateEnd'])) {
             return $this->auth->error_response(
@@ -55,7 +52,6 @@ class OctoAvailability {
         $fecha_inicio = sanitize_text_field($body['localDateStart']);
         $fecha_fin    = sanitize_text_field($body['localDateEnd']);
 
-        // Filtro opcional por unidades
         $units = $body['units'] ?? array();
         $total_solicitado = 0;
         foreach ($units as $unit) {
@@ -81,7 +77,6 @@ class OctoAvailability {
         foreach ($servicios as $servicio) {
             $plazas = intval($servicio->plazas_disponibles);
 
-            // Si piden unidades concretas, filtrar por disponibilidad
             if ($total_solicitado > 0 && $plazas < $total_solicitado) {
                 continue;
             }
@@ -93,63 +88,64 @@ class OctoAvailability {
                 $status = 'LIMITED';
             }
 
-            // SUSTITUYE las dos líneas de $local_start y $local_end por:
-$offset      = (new DateTime('now', new DateTimeZone('Europe/Madrid')))->format('P');
-$local_start = $servicio->fecha . 'T' . substr($servicio->hora, 0, 5) . ':00' . $offset;
-$local_end   = $servicio->hora_vuelta
-    ? $servicio->fecha . 'T' . substr($servicio->hora_vuelta, 0, 5) . ':00' . $offset
-    : null;
+            $offset      = (new DateTime('now', new DateTimeZone('Europe/Madrid')))->format('P');
+            $local_start = $servicio->fecha . 'T' . substr($servicio->hora, 0, 5) . ':00' . $offset;
+            $local_end   = $servicio->hora_vuelta
+                ? $servicio->fecha . 'T' . substr($servicio->hora_vuelta, 0, 5) . ':00' . $offset
+                : null;
 
-            // availabilityId firmado con datos del servicio
             $availability_id = $this->generate_availability_id($servicio->id, $servicio->fecha, $servicio->hora);
 
             $slot = array(
-                'id'                     => $availability_id,
-                'localDateTimeStart'     => $local_start,
-                'localDateTimeEnd'       => $local_end,
-                'allDay'                 => false,
-                'available'              => ($status !== 'SOLD_OUT'),
-                'status'                 => $status,
-                'vacancies'              => $plazas,
-                'capacity'               => intval($servicio->plazas_totales),
-                'maxUnits'               => $plazas,
-                'utcCutoffAt'            => gmdate('Y-m-d\TH:i:s\Z', strtotime($servicio->fecha . ' ' . $servicio->hora) - 3600),
-                'openingHours'           => array(),
-                'productId'              => 'bus-medina-azahara',
-                'optionId'               => 'standard',
+                'id'                 => $availability_id,
+                'localDateTimeStart' => $local_start,
+                'localDateTimeEnd'   => $local_end,
+                'allDay'             => false,
+                'available'          => ($status !== 'SOLD_OUT'),
+                'status'             => $status,
+                'vacancies'          => $plazas,
+                'capacity'           => intval($servicio->plazas_totales),
+                'maxUnits'           => $plazas,
+                'utcCutoffAt'        => gmdate('Y-m-d\TH:i:s\Z', strtotime($servicio->fecha . ' ' . $servicio->hora) - 3600),
+                'openingHours'       => array(),
+                'productId'          => 'bus-medina-azahara',
+                'optionId'           => 'standard',
             );
 
-            // A�0�9adir pricing si lo pide el reseller
             $capabilities = $this->auth->get_capabilities($request);
             if (in_array('octo/pricing', $capabilities) || in_array('pricing', $capabilities)) {
                 $slot['unitPricing'] = array(
                     array(
-                        'unitId'   => 'adult',
-                        'retail'   => intval(floatval($servicio->precio_adulto) * 100),
-                        'original' => intval(floatval($servicio->precio_adulto) * 100),
-                        'currency' => 'EUR',
+                        'unitId'            => 'adult',
+                        'retail'            => intval(floatval($servicio->precio_adulto) * 100),
+                        'original'          => intval(floatval($servicio->precio_adulto) * 100),
+                        'currency'          => 'EUR',
                         'currencyPrecision' => 2,
+                        'includedTaxes'     => array(),
                     ),
                     array(
-                        'unitId'   => 'child',
-                        'retail'   => intval(floatval($servicio->precio_nino) * 100),
-                        'original' => intval(floatval($servicio->precio_nino) * 100),
-                        'currency' => 'EUR',
+                        'unitId'            => 'child',
+                        'retail'            => intval(floatval($servicio->precio_nino) * 100),
+                        'original'          => intval(floatval($servicio->precio_nino) * 100),
+                        'currency'          => 'EUR',
                         'currencyPrecision' => 2,
+                        'includedTaxes'     => array(),
                     ),
                     array(
-                        'unitId'   => 'resident',
-                        'retail'   => intval(floatval($servicio->precio_residente) * 100),
-                        'original' => intval(floatval($servicio->precio_residente) * 100),
-                        'currency' => 'EUR',
+                        'unitId'            => 'resident',
+                        'retail'            => intval(floatval($servicio->precio_residente) * 100),
+                        'original'          => intval(floatval($servicio->precio_residente) * 100),
+                        'currency'          => 'EUR',
                         'currencyPrecision' => 2,
+                        'includedTaxes'     => array(),
                     ),
                     array(
-                        'unitId'   => 'infant',
-                        'retail'   => 0,
-                        'original' => 0,
-                        'currency' => 'EUR',
+                        'unitId'            => 'infant',
+                        'retail'            => 0,
+                        'original'          => 0,
+                        'currency'          => 'EUR',
                         'currencyPrecision' => 2,
+                        'includedTaxes'     => array(),
                     ),
                 );
             }
@@ -216,11 +212,11 @@ $local_end   = $servicio->hora_vuelta
             }
 
             $response[] = array(
-                'localDate'  => $dia->fecha,
-                'available'  => ($status !== 'SOLD_OUT'),
-                'status'     => $status,
-                'vacancies'  => intval($dia->total_disponibles),
-                'capacity'   => null,
+                'localDate'    => $dia->fecha,
+                'available'    => ($status !== 'SOLD_OUT'),
+                'status'       => $status,
+                'vacancies'    => intval($dia->total_disponibles),
+                'capacity'     => null,
                 'openingHours' => array(),
             );
         }
@@ -236,8 +232,6 @@ $local_end   = $servicio->hora_vuelta
     }
 
     public function decode_availability_id($availability_id) {
-        // Extrae el servicio_id del availability_id
-        // Formato: avail_{servicio_id}_{fecha}_{hash}
         $parts = explode('_', $availability_id);
         if (count($parts) >= 3 && $parts[0] === 'avail') {
             return intval($parts[1]);
